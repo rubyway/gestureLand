@@ -152,9 +152,9 @@ class ChristmasTree {
 
     updateSize(size) {
         config.sphereSize = size;
+        const scaleFactor = size / 0.15; // 0.15 is the default size
         this.spheres.forEach(sphere => {
-            sphere.geometry.dispose();
-            sphere.geometry = new THREE.SphereGeometry(size, 16, 16);
+            sphere.scale.set(scaleFactor, scaleFactor, scaleFactor);
         });
     }
 
@@ -439,7 +439,7 @@ function animate() {
 function setupEventListeners() {
     // Background color
     document.getElementById('bgColor').addEventListener('input', (e) => {
-        config.backgroundColor = parseInt(e.target.value.replace('#', '0x'));
+        config.backgroundColor = parseInt(e.target.value.replace('#', ''), 16);
         scene.background = new THREE.Color(config.backgroundColor);
     });
 
