@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Christmas Tree with Gesture Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #video {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            z-index: 1000;
+            transform: scaleX(-1);
+            display: none;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            color: #fff;
+            z-index: 1000;
+            max-width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        #controls h3 {
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .control-group input[type="range"],
+        .control-group input[type="color"],
+        .control-group input[type="file"],
+        .control-group select {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .control-group button {
+            width: 100%;
+            padding: 8px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+
+        .control-group button:hover {
+            background: #45a049;
+        }
+
+        .control-group button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        #gesture-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            color: #fff;
+            z-index: 1000;
+            font-size: 14px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 24px;
+            z-index: 2000;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        #photo-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            max-width: 80vw;
+            max-height: 80vh;
+            border: 4px solid #fff;
+            border-radius: 8px;
+            z-index: 2000;
+            transition: transform 0.3s ease;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+        }
+
+        #photo-modal.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #audio-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            color: #fff;
+            z-index: 1000;
+        }
+
+        #audio-controls input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        <video id="video" autoplay playsinline></video>
+        
+        <div id="controls">
+            <h3>🎄 Christmas Tree Controls</h3>
+            
+            <div class="control-group">
+                <label>Background Color:</label>
+                <input type="color" id="bgColor" value="#000000">
+            </div>
+
+            <div class="control-group">
+                <label>Sphere Density: <span id="densityValue">500</span></label>
+                <input type="range" id="density" min="100" max="1000" value="500" step="50">
+            </div>
+
+            <div class="control-group">
+                <label>Sphere Size: <span id="sizeValue">0.15</span></label>
+                <input type="range" id="sphereSize" min="0.05" max="0.3" value="0.15" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <label>Auto Rotation Speed: <span id="rotationValue">0.005</span></label>
+                <input type="range" id="rotationSpeed" min="0" max="0.02" value="0.005" step="0.001">
+            </div>
+
+            <div class="control-group">
+                <button id="toggleCamera">Enable Camera</button>
+            </div>
+
+            <div class="control-group">
+                <label>Upload Photos (Hidden in tree):</label>
+                <input type="file" id="photoUpload" accept="image/*" multiple>
+            </div>
+
+            <div class="control-group">
+                <label>Upload Music:</label>
+                <input type="file" id="musicUpload" accept="audio/*">
+            </div>
+
+            <div class="control-group">
+                <button id="scatterBtn">Scatter Effect</button>
+                <button id="gatherBtn">Gather Effect</button>
+                <button id="resetBtn">Reset Tree</button>
+            </div>
+        </div>
+
+        <div id="gesture-info">
+            <strong>Gesture Controls:</strong><br>
+            👋 Left/Right: Rotate tree<br>
+            👆👇 Up/Down: Move tree<br>
+            🤏 One hand pinch: Resize tree<br>
+            🙌 Two hands spread: Scatter<br>
+            🤲 Two hands pinch: Gather<br>
+            👌 Thumb-Index spread: Show photo
+        </div>
+
+        <div id="audio-controls" class="hidden">
+            <button id="playPauseBtn">▶️ Play</button>
+            <input type="range" id="volumeSlider" min="0" max="1" value="0.5" step="0.1">
+        </div>
+
+        <img id="photo-modal" src="" alt="Hidden photo">
+
+        <div id="loading">Loading models...</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7"></script>
+    <script src="app.js"></script>
+</body>
+</html>
