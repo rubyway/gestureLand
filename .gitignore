@@ -1,0 +1,25 @@
+# Temporary files
+/tmp/
+*.log
+nohup.out
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node modules (if added later)
+node_modules/
+package-lock.json
+
+# Build artifacts
+dist/
+build/
+
+# Local server files
+libs/*.tmp

@@ -1,0 +1,30 @@
+{
+  "name": "gesture-land",
+  "version": "1.0.0",
+  "description": "Interactive 3D Christmas Tree with Gesture Control",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8000 -c-1",
+    "dev": "npx http-server -p 8000 -c-1 --cors",
+    "demo": "npx http-server -p 8000 -c-1 -o demo.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rubyway/gestureLand.git"
+  },
+  "keywords": [
+    "3d",
+    "christmas-tree",
+    "gesture-control",
+    "threejs",
+    "tensorflow",
+    "handpose",
+    "web-app",
+    "interactive",
+    "webgl"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}
