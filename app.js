@@ -19,14 +19,42 @@ const config = {
 };
 
 // Gesture state
+// Enhanced gesture recognition with smoothing, confidence tracking, and debouncing
+// to improve accuracy and reduce false positives
 const gestureState = {
     lastHandPositions: [],
+    smoothedHandPositions: [],
     pinchStartDistance: null,
     twoHandsLastDistance: null,
     treeScale: 1,
     treeRotationY: 0,
     treePositionY: 0,
-    isScattered: false
+    isScattered: false,
+    lastGestureTime: {
+        scatter: 0,
+        gather: 0,
+        photoReveal: 0
+    },
+    gestureCooldown: 1000, // milliseconds
+    smoothingFactor: 0.3, // Lower = more smoothing (0-1 range)
+    confidenceThreshold: 3, // Number of consecutive frames to confirm gesture
+    gestureConfidence: {
+        scatter: 0,
+        gather: 0,
+        pinch: 0
+    }
+};
+
+// Improved thresholds
+const gestureThresholds = {
+    pinchDistance: 40, // Increased from 30 for more reliable detection
+    photoRevealMin: 70, // Decreased from 80 for easier triggering
+    photoRevealMax: 180, // Increased from 150 for wider range
+    movementSensitivity: 5, // Increased from 2 to reduce jitter
+    twoHandsScatterDelta: 80, // Increased from 50 for more deliberate gesture
+    twoHandsGatherDelta: -80, // Increased from -50 for more deliberate gesture
+    rotationSpeed: 0.002, // Decreased from 0.001 for smoother rotation
+    verticalSpeed: 0.015 // Increased from 0.01 for more responsive movement
 };
 
 class ChristmasTree {
@@ -292,78 +320,114 @@ function processSingleHandGesture(hand) {
     const ringTip = landmarks[16];
     const pinkyTip = landmarks[20];
 
+    // Smooth hand position
+    const smoothedPalm = smoothHandPosition(
+        palm, 
+        gestureState.smoothedHandPositions[0], 
+        gestureState.smoothingFactor
+    );
+    gestureState.smoothedHandPositions[0] = smoothedPalm;
+
     // Calculate pinch distance (thumb to index)
     const pinchDistance = distance3D(thumbTip, indexTip);
-    const isPinching = pinchDistance < 30;
+    const isPinching = pinchDistance < gestureThresholds.pinchDistance;
 
     // Detect thumb-index spread for photo display
-    if (pinchDistance > 80 && pinchDistance < 150) {
+    if (pinchDistance > gestureThresholds.photoRevealMin && 
+        pinchDistance < gestureThresholds.photoRevealMax &&
+        canTriggerGesture('photoReveal')) {
         const screenX = window.innerWidth - (thumbTip[0] / 640) * 200;
         const screenY = (thumbTip[1] / 480) * 150;
         showPhotoAtPosition(screenX, screenY);
+        markGestureTriggered('photoReveal');
     }
 
-    // One hand pinch to control tree size
+    // One hand pinch to control tree size with confidence tracking
     if (isPinching) {
-        if (gestureState.pinchStartDistance === null) {
-            gestureState.pinchStartDistance = pinchDistance;
-        } else {
-            const scaleFactor = pinchDistance / gestureState.pinchStartDistance;
-            gestureState.treeScale = Math.max(0.5, Math.min(2, scaleFactor));
-            christmasTree.group.scale.set(
-                gestureState.treeScale,
-                gestureState.treeScale,
-                gestureState.treeScale
-            );
+        const isConfirmed = updateGestureConfidence('pinch', true);
+        if (isConfirmed) {
+            if (gestureState.pinchStartDistance === null) {
+                gestureState.pinchStartDistance = pinchDistance;
+            } else {
+                const scaleFactor = pinchDistance / gestureState.pinchStartDistance;
+                gestureState.treeScale = Math.max(0.5, Math.min(2, scaleFactor));
+                christmasTree.group.scale.set(
+                    gestureState.treeScale,
+                    gestureState.treeScale,
+                    gestureState.treeScale
+                );
+            }
         }
     } else {
+        updateGestureConfidence('pinch', false);
         gestureState.pinchStartDistance = null;
     }
 
-    // Hand position for rotation and movement
+    // Hand position for rotation and movement with improved thresholds
     if (gestureState.lastHandPositions.length > 0) {
         const lastPalm = gestureState.lastHandPositions[0];
-        const deltaX = palm[0] - lastPalm[0];
-        const deltaY = palm[1] - lastPalm[1];
+        const deltaX = smoothedPalm[0] - lastPalm[0];
+        const deltaY = smoothedPalm[1] - lastPalm[1];
 
-        // Horizontal movement rotates tree
-        if (Math.abs(deltaX) > 2) {
-            gestureState.treeRotationY += deltaX * 0.001;
+        // Horizontal movement rotates tree (with higher threshold to reduce jitter)
+        if (Math.abs(deltaX) > gestureThresholds.movementSensitivity) {
+            gestureState.treeRotationY += deltaX * gestureThresholds.rotationSpeed;
             christmasTree.group.rotation.y = gestureState.treeRotationY;
         }
 
-        // Vertical movement moves tree up/down
-        if (Math.abs(deltaY) > 2) {
-            gestureState.treePositionY -= deltaY * 0.01;
+        // Vertical movement moves tree up/down (with higher threshold)
+        if (Math.abs(deltaY) > gestureThresholds.movementSensitivity) {
+            gestureState.treePositionY -= deltaY * gestureThresholds.verticalSpeed;
             christmasTree.group.position.y = gestureState.treePositionY;
         }
     }
 
-    gestureState.lastHandPositions = [palm];
+    gestureState.lastHandPositions = [smoothedPalm];
 }
 
 function processTwoHandsGesture(hand1, hand2) {
     const palm1 = hand1.landmarks[0];
     const palm2 = hand2.landmarks[0];
     
-    const handsDistance = distance3D(palm1, palm2);
+    // Smooth both hand positions
+    const smoothedPalm1 = smoothHandPosition(
+        palm1,
+        gestureState.smoothedHandPositions[0],
+        gestureState.smoothingFactor
+    );
+    const smoothedPalm2 = smoothHandPosition(
+        palm2,
+        gestureState.smoothedHandPositions[1],
+        gestureState.smoothingFactor
+    );
+    gestureState.smoothedHandPositions[0] = smoothedPalm1;
+    gestureState.smoothedHandPositions[1] = smoothedPalm2;
+    
+    const handsDistance = distance3D(smoothedPalm1, smoothedPalm2);
 
-    // Two hands gesture for scatter/gather
+    // Two hands gesture for scatter/gather with improved detection
     if (gestureState.twoHandsLastDistance !== null) {
         const distanceChange = handsDistance - gestureState.twoHandsLastDistance;
         
-        // Spreading apart - scatter
-        if (distanceChange > 50 && !gestureState.isScattered) {
+        // Spreading apart - scatter (with confidence tracking)
+        const isScattering = distanceChange > gestureThresholds.twoHandsScatterDelta;
+        const scatterConfirmed = updateGestureConfidence('scatter', isScattering);
+        if (scatterConfirmed && !gestureState.isScattered && canTriggerGesture('scatter')) {
             christmasTree.scatter();
+            markGestureTriggered('scatter');
         }
-        // Coming together - gather
-        else if (distanceChange < -50 && gestureState.isScattered) {
+        
+        // Coming together - gather (with confidence tracking)
+        const isGathering = distanceChange < gestureThresholds.twoHandsGatherDelta;
+        const gatherConfirmed = updateGestureConfidence('gather', isGathering);
+        if (gatherConfirmed && gestureState.isScattered && canTriggerGesture('gather')) {
             christmasTree.gather();
+            markGestureTriggered('gather');
         }
     }
 
     gestureState.twoHandsLastDistance = handsDistance;
-    gestureState.lastHandPositions = [palm1, palm2];
+    gestureState.lastHandPositions = [smoothedPalm1, smoothedPalm2];
 }
 
 function distance3D(point1, point2) {
@@ -372,6 +436,43 @@ function distance3D(point1, point2) {
         Math.pow(point1[1] - point2[1], 2) +
         Math.pow(point1[2] - point2[2], 2)
     );
+}
+
+// Smooth hand positions using exponential moving average
+function smoothHandPosition(currentPos, smoothedPos, factor) {
+    if (!smoothedPos || smoothedPos.length === 0) {
+        return currentPos;
+    }
+    return [
+        smoothedPos[0] + factor * (currentPos[0] - smoothedPos[0]),
+        smoothedPos[1] + factor * (currentPos[1] - smoothedPos[1]),
+        smoothedPos[2] + factor * (currentPos[2] - smoothedPos[2])
+    ];
+}
+
+// Check if enough time has passed since last gesture
+function canTriggerGesture(gestureType) {
+    const now = Date.now();
+    const lastTime = gestureState.lastGestureTime[gestureType] || 0;
+    return (now - lastTime) > gestureState.gestureCooldown;
+}
+
+// Mark gesture as triggered
+function markGestureTriggered(gestureType) {
+    gestureState.lastGestureTime[gestureType] = Date.now();
+}
+
+// Update gesture confidence
+function updateGestureConfidence(gestureType, isDetected) {
+    if (isDetected) {
+        gestureState.gestureConfidence[gestureType] = 
+            Math.min(gestureState.confidenceThreshold, 
+                    gestureState.gestureConfidence[gestureType] + 1);
+    } else {
+        gestureState.gestureConfidence[gestureType] = 
+            Math.max(0, gestureState.gestureConfidence[gestureType] - 1);
+    }
+    return gestureState.gestureConfidence[gestureType] >= gestureState.confidenceThreshold;
 }
 
 function showPhotoAtPosition(screenX, screenY) {
