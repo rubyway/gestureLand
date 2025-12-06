@@ -53,7 +53,7 @@ const gestureThresholds = {
     movementSensitivity: 5, // Increased from 2 to reduce jitter
     twoHandsScatterDelta: 80, // Increased from 50 for more deliberate gesture
     twoHandsGatherDelta: -80, // Increased from -50 for more deliberate gesture
-    rotationSpeed: 0.002, // Decreased from 0.001 for smoother rotation
+    rotationSpeed: 0.002, // Increased from 0.001 for more responsive rotation
     verticalSpeed: 0.015 // Increased from 0.01 for more responsive movement
 };
 
@@ -389,7 +389,7 @@ function processTwoHandsGesture(hand1, hand2) {
     const palm1 = hand1.landmarks[0];
     const palm2 = hand2.landmarks[0];
     
-    // Smooth both hand positions
+    // Smooth both hand positions - ensure array has space
     const smoothedPalm1 = smoothHandPosition(
         palm1,
         gestureState.smoothedHandPositions[0],
@@ -397,7 +397,7 @@ function processTwoHandsGesture(hand1, hand2) {
     );
     const smoothedPalm2 = smoothHandPosition(
         palm2,
-        gestureState.smoothedHandPositions[1],
+        gestureState.smoothedHandPositions[1] || [],
         gestureState.smoothingFactor
     );
     gestureState.smoothedHandPositions[0] = smoothedPalm1;
