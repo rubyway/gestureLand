@@ -5,6 +5,16 @@
 2. Allow browser camera permissions
 3. Position yourself 30-60cm from camera
 4. Ensure good lighting
+5. Wait for the hand tracking model to load (first time only)
+
+## How Gesture Recognition Works
+
+The app uses **TensorFlow.js HandPose** model to track 21 hand landmarks in real-time. To improve accuracy and reduce false positives, the system includes:
+
+- **Temporal Smoothing**: Hand positions are smoothed using exponential moving average to reduce jitter
+- **Confidence Tracking**: Gestures require 3 consecutive frames of detection before triggering
+- **Cooldown Periods**: 1-second cooldown between gesture triggers to prevent accidental repeats
+- **Optimized Thresholds**: Carefully tuned distance and movement thresholds for reliable detection
 
 ## Single Hand Gestures
 
@@ -21,24 +31,28 @@
 ### 🤏 Pinch Gesture
 **Action**: Pinch thumb and index finger together/apart  
 **Effect**: Controls tree size (zoom in/out)  
-**Tip**: Start with fingers apart, then pinch slowly
+**Detection**: Triggers when fingers are less than 40 pixels apart
+**Tip**: Start with fingers apart, then pinch slowly. The gesture requires confirmation over multiple frames for stability
 
 ### 👌 Photo Reveal
-**Action**: Make "OK" sign (thumb and index wide spread, 8-15cm apart)  
+**Action**: Make wide spread between thumb and index (7-18cm apart)  
 **Effect**: Reveals hidden photo at that position  
-**Tip**: Point at specific spheres to reveal their photos
+**Detection**: Triggers when fingers are 70-180 pixels apart (wider range for easier use)
+**Tip**: Point at specific spheres to reveal their photos. Has 1-second cooldown to prevent rapid triggering
 
 ## Two Hand Gestures
 
 ### 🙌 Scatter Effect
 **Action**: Start with hands together, then spread them apart quickly  
 **Effect**: Spheres scatter in all directions  
-**Tip**: Move hands apart by at least 30cm
+**Detection**: Requires 80+ pixels increase in distance between palms with 3-frame confirmation
+**Tip**: Move hands apart deliberately and wait for effect to trigger. Has 1-second cooldown
 
 ### 🤲 Gather Effect
 **Action**: Start with hands apart, bring them together  
 **Effect**: Spheres return to tree formation  
-**Tip**: Bring hands within 10cm of each other
+**Detection**: Requires 80+ pixels decrease in distance between palms with 3-frame confirmation
+**Tip**: Bring hands together deliberately. Has 1-second cooldown
 
 ## Manual Controls (Button Alternative)
 
@@ -53,9 +67,12 @@ If gestures aren't working, use manual controls:
 ### Gestures Not Responding
 1. Check camera is enabled (top-right preview)
 2. Ensure good lighting
-3. Keep hand clearly visible
-4. Try moving closer or farther from camera
-5. Make gestures more pronounced
+3. Keep hand clearly visible in camera view
+4. Try moving closer or farther from camera (optimal: 30-60cm)
+5. Make gestures more pronounced and deliberate
+6. Hold gestures for 2-3 frames (about 0.1 seconds) for confirmation
+7. Wait for cooldown period (1 second) between repeated gestures
+8. Ensure only 1-2 hands are visible in frame
 
 ### Camera Not Working
 1. Verify browser permissions granted
@@ -94,9 +111,34 @@ Currently no keyboard shortcuts implemented. Use on-screen controls.
 ## Customization
 
 You can customize sensitivity and gesture thresholds by editing `app.js`:
-- `processSingleHandGesture()` - Single hand gesture detection
-- `processTwoHandsGesture()` - Two hand gesture detection
-- Adjust distance thresholds for different sensitivity
+
+### Gesture Thresholds (lines 47-56)
+```javascript
+const gestureThresholds = {
+    pinchDistance: 40,           // Pinch detection threshold (pixels)
+    photoRevealMin: 70,          // Min distance for photo reveal (pixels)
+    photoRevealMax: 180,         // Max distance for photo reveal (pixels)
+    movementSensitivity: 5,      // Movement threshold to reduce jitter (pixels)
+    twoHandsScatterDelta: 80,    // Distance change to trigger scatter (pixels)
+    twoHandsGatherDelta: -80,    // Distance change to trigger gather (pixels)
+    rotationSpeed: 0.002,        // Rotation speed multiplier
+    verticalSpeed: 0.015         // Vertical movement speed multiplier
+};
+```
+
+### Gesture State Configuration (lines 36-38)
+```javascript
+gestureCooldown: 1000,           // Cooldown between gestures (milliseconds)
+smoothingFactor: 0.3,            // Smoothing factor (0=max smoothing, 1=no smoothing)
+confidenceThreshold: 3,          // Frames required to confirm gesture
+```
+
+### Tips for Customization
+- **Increase `pinchDistance`** if pinch triggers too easily
+- **Decrease `movementSensitivity`** for more responsive movement (but more jitter)
+- **Increase `confidenceThreshold`** to reduce false positives (but slower response)
+- **Decrease `smoothingFactor`** for smoother but less responsive tracking
+- **Adjust cooldown** to allow faster or slower repeated gestures
 
 ## Browser Support
 
